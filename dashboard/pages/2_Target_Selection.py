@@ -51,7 +51,8 @@ builder.configure_default_column(filterable=True, sorteable=True, groupable=Fals
                                   hide=True)
 
 builder.configure_selection(selection_mode='single', pre_selected_rows=[1], use_checkbox=False)
-builder.configure_grid_options(tooltipInteraction=True, tooltipShowDelay=1000)
+builder.configure_grid_options(tooltipInteraction=True, tooltipShowDelay=1000, alwaysShowHorizontalScroll=True,
+                               pagination=True, paginationPageSize=10000)
 builder.configure_side_bar()
 
 from load_data import column_descriptions
