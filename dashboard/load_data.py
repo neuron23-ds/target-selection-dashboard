@@ -60,11 +60,11 @@ column_descriptions = {
     'Protein SMR':'Protein SMR', 
     'Expression Coloc':'Expression Coloc', 
     'Additional SMR':'SMR results from NIH omicsynth browser',
-    'sc_exp_risk':'Single cell expression risk',
+    'SC Exprs Risk':'Single cell expression risk',
+    'SC Exprs Progression':'cell types that show differential gene expression with fast progressing ALS as compared to slow progressing in Answer ALS based on monthly change in ALSFRS',
+    'SC Protein Progression':'cell types that show differential protein with fast progressing ALS as compared to slow progressing in Answer ALS based on monthly change in ALSFRS',
     'gwas_hit_progression':'indicates whether a published genetic association between this gene and ALS survival or progression has been confirmed in the Answer ALS cohort', 
     'publication':'indicates whether a genetic association between this gene and ALS survival or progression has been published',
-    'sc_exp_prog_aals':'cell types that show differential gene expression with fast progressing ALS as compared to slow progressing in Answer ALS based on monthly change in ALSFRS',
-    'sc_prot_prog_aals':'cell types that show differential protein with fast progressing ALS as compared to slow progressing in Answer ALS based on monthly change in ALSFRS'
 }
 
 
@@ -78,15 +78,17 @@ class data_loader():
         self.gwas = gwas
         self.studies = studies[studies.indication == indication]
 
-        self.smr_pqtl = pd.merge(studies, smr_pqtl, left_on='study_id', right_on='gwas', how='right')
-        self.coloc_pqtl = pd.merge(studies, coloc_pqtl, left_on='study_id', right_on='gwas', how='right')
-        self.coloc_eqtl_gtex = pd.merge(studies, coloc_eqtl_gtex, left_on='study_id', right_on='gwas', how='right')
-        self.coloc_eqtl_metabrain = pd.merge(studies, coloc_eqtl_metabrain, left_on='study_id', right_on='gwas', how='right')
+        self.smr_pqtl = pd.merge(self.studies, smr_pqtl, left_on='study_id', right_on='gwas', how='right')
+        self.coloc_pqtl = pd.merge(self.studies, coloc_pqtl, left_on='study_id', right_on='gwas', how='right')
+        self.coloc_eqtl_gtex = pd.merge(self.studies, coloc_eqtl_gtex, left_on='study_id', right_on='gwas', how='right')
+        self.coloc_eqtl_metabrain = pd.merge(self.studies, coloc_eqtl_metabrain, left_on='study_id', right_on='gwas', how='right')
         self.coloc_eqtl = pd.concat([self.coloc_eqtl_gtex, self.coloc_eqtl_metabrain])
-
-        self.single_cell_expression = pd.merge(studies, single_cell_expression, on='study_id', how='right')
+        
         self.smr_omicsynth = smr_omicsynth[smr_omicsynth.indication == self.indication]
-        self.single_cell_proteomics = pd.merge(studies, single_cell_proteomics, on='study_id', how='right')
+        self.single_cell_expression_risk = pd.merge(self.studies[self.studies.phenotype == 'risk'], single_cell_expression, on='study_id', how='inner')
+        self.single_cell_expression_prog = pd.merge(self.studies[self.studies.phenotype == 'progression'], single_cell_expression, on='study_id', how='inner')
+        
+        self.single_cell_proteomics = pd.merge(self.studies, single_cell_proteomics, on='study_id', how='right')
     
     @st.cache_data
     def load_main_df(_self):
@@ -118,13 +120,14 @@ class data_loader():
         coloc_pqtl_for_main_df = _self.coloc_pqtl.groupby('symbol').apply(lambda x: list(x.omic[(x.n_coloc > 0) & (x.n_coloc != x.n_hla)])).rename('Protein Coloc').reset_index()
         main_df = main_df.merge(coloc_pqtl_for_main_df, how='left')
 
-        single_cell_expression_for_main_df = _self.single_cell_expression.groupby(['study_id','ensembl_id']).apply(lambda x: list(x.cell[x.padj <= 0.05])).rename('cells').reset_index()
-        single_cell_expression_for_main_df = single_cell_expression_for_main_df.replace({'GSE174332':'sc_exp_risk','aals_progression_expression':'sc_exp_prog_aals'})
-        single_cell_expression_for_main_df = single_cell_expression_for_main_df.pivot(index='ensembl_id', columns='study_id', values='cells').reset_index()
-        main_df = main_df.merge(single_cell_expression_for_main_df, how='left')
+        single_cell_expression_risk_for_main_df = _self.single_cell_expression_risk.groupby('ensembl_id').apply(lambda x: list(x.cell[x.padj <= 0.05])).rename('SC Exprs Risk').reset_index()
+        main_df = main_df.merge(single_cell_expression_risk_for_main_df, how='left')
 
-        single_cell_proteomics_for_main_df = _self.single_cell_proteomics.groupby(['study_id','uniprot_id']).apply(lambda x: list(x.cell[x.padj <= 0.05])).rename('cells').reset_index()
-        single_cell_proteomics_for_main_df = single_cell_proteomics_for_main_df.replace({'aals_progression_proteomics':'sc_prot_prog_aals'})
+        single_cell_expression_prog_for_main_df = _self.single_cell_expression_prog.groupby('ensembl_id').apply(lambda x: list(x.cell[x.pvalue <= 0.05])).rename('SC Exprs Progression').reset_index()
+        main_df = main_df.merge(single_cell_expression_prog_for_main_df, how='left')
+
+        single_cell_proteomics_for_main_df = _self.single_cell_proteomics.groupby(['study_id','uniprot_id']).apply(lambda x: list(x.cell[x.pvalue <= 0.05])).rename('cells').reset_index()
+        single_cell_proteomics_for_main_df = single_cell_proteomics_for_main_df.replace({'aals_progression_proteomics':'SC Protein Progression'})
         single_cell_proteomics_for_main_df = single_cell_proteomics_for_main_df.pivot(index='uniprot_id', columns='study_id', values='cells').reset_index()
         main_df = main_df.merge(single_cell_proteomics_for_main_df, how='left')
 
@@ -143,7 +146,7 @@ class data_loader():
                             'Protein class', 'Molecular function', 'Biological process',
                             '3D structure', 'Avg BLAST identity', 'chembl_id', 'Chemical matter',
                             'gwas_hit_risk', 'Protein SMR','Additional SMR', 'Protein Coloc', 'Expression Coloc',  
-                            'gwas_hit_progression','publication','sc_exp_risk', 'sc_exp_prog_aals', 'sc_prot_prog_aals']]
+                            'gwas_hit_progression','publication','SC Exprs Risk', 'SC Exprs Progression', 'SC Protein Progression']]
         
         main_df.reset_index(drop=True, inplace=True)
         main_df.index = main_df.index+1
@@ -172,11 +175,12 @@ class data_loader():
         return smr_result
 
     def get_single_cell_diffex(self, ensembl_id, uniprot_id):
-        sigle_cell_expression = self.single_cell_expression.loc[(self.single_cell_expression['ensembl_id'] == ensembl_id)].dropna()
+        single_cell_expression_risk = self.single_cell_expression_risk.loc[(self.single_cell_expression_risk['ensembl_id'] == ensembl_id) & (self.single_cell_expression_risk.padj <= 0.05)].dropna()
+        sigle_cell_expression_prog = self.single_cell_expression_prog.loc[(self.single_cell_expression_prog['ensembl_id'] == ensembl_id)].dropna()
         single_cell_proteomics = self.single_cell_proteomics.loc[(self.single_cell_proteomics['uniprot_id'] == uniprot_id)].dropna()
         
         cols = ['cell','phenotype','study_type','log2_change','pvalue']
-        result = pd.concat([sigle_cell_expression[cols], single_cell_proteomics[cols]])
+        result = pd.concat([single_cell_expression_risk[cols], sigle_cell_expression_prog[cols], single_cell_proteomics[cols]])
         result['direction'] = np.where(result.log2_change > 0, 'up', 'down')
         return result
     
