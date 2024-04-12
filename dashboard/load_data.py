@@ -8,7 +8,7 @@ conn = st.connection('gcs', type=FilesConnection)
 
 genes = conn.read('target-selection-pipeline/db/genes.csv')
 
-risk_score = conn.read('target-selection-pipeline/db/genes_omic_risk_score.csv')
+risk_score = conn.read('target-selection-pipeline/db/genes_omic_risk_score.csv').rename({'available':'score_risk_n_sources'}, axis=1)
 progression_score = conn.read('target-selection-pipeline/db/genes_omic_progression_score.csv')
 druggability_score = conn.read('target-selection-pipeline/db/genes_druggability_score.csv')
 
@@ -47,7 +47,7 @@ column_descriptions = {
     'ec':'Enzuyme Commission number',
     'ensembl_id':'Ensembl ID', 
     'score_risk':'Reflects the relative strength of association between a gene and indication. This is an internally determined score based on an analysis designed by the N23 DS team.', 
-    'available':'Number of sources available for risk score', 
+    'score_risk_n_sources':'The number data sources available for the risk score. Some genes may have data avaiable all sources, while others may have data available from only a few sources. You can take this number into account when interpreting the risk score.', 
     'score_progression':'Omics progression score',
     'Protein class':'Protein class', 
     'Molecular function':'Molecular functions, as annotated by UniProt', 
@@ -79,6 +79,7 @@ class data_loader():
         self.studies = studies[studies.indication == indication]
 
         self.smr_pqtl = pd.merge(studies, smr_pqtl, left_on='study_id', right_on='gwas', how='right')
+        self.coloc_pqtl = pd.merge(studies, coloc_pqtl, left_on='study_id', right_on='gwas', how='right')
         self.coloc_eqtl_gtex = pd.merge(studies, coloc_eqtl_gtex, left_on='study_id', right_on='gwas', how='right')
         self.coloc_eqtl_metabrain = pd.merge(studies, coloc_eqtl_metabrain, left_on='study_id', right_on='gwas', how='right')
         self.coloc_eqtl = pd.concat([self.coloc_eqtl_gtex, self.coloc_eqtl_metabrain])
@@ -100,7 +101,7 @@ class data_loader():
         main_df['Biological process'] = main_df['Biological process'].map(string_list_to_list, na_action='ignore')
 
         # Merge with scores
-        main_df = pd.merge(main_df, risk_score[['entrez_id', 'name', 'symbol', 'uniprot_id', 'ec', 'ensembl_id', 'score','available','gwas_hit']], on=['entrez_id', 'name', 'symbol', 'uniprot_id', 'ec', 'ensembl_id'])
+        main_df = pd.merge(main_df, risk_score[['entrez_id', 'name', 'symbol', 'uniprot_id', 'ec', 'ensembl_id', 'score','score_risk_n_sources','gwas_hit']], on=['entrez_id', 'name', 'symbol', 'uniprot_id', 'ec', 'ensembl_id'])
         main_df = pd.merge(main_df, progression_score[['entrez_id', 'name', 'symbol', 'uniprot_id', 'ec', 'ensembl_id', 'score','gwas_hit','publication']], on=['entrez_id', 'name', 'symbol', 'uniprot_id', 'ec', 'ensembl_id'], suffixes=('_risk','_progression'))
         
         # Merge with gwas-based results from core analysis
@@ -113,7 +114,10 @@ class data_loader():
         # Merge with supplementary omics data
         smr_omicsynth_for_main_df = _self.smr_omicsynth.groupby('symbol').apply(lambda x: list(x.omic[x.smr_hit == 1])).rename('Additional SMR').reset_index()
         main_df = main_df.merge(smr_omicsynth_for_main_df, how='left')
-        
+
+        coloc_pqtl_for_main_df = _self.coloc_pqtl.groupby('symbol').apply(lambda x: list(x.omic[(x.n_coloc > 0) & (x.n_coloc != x.n_hla)])).rename('Protein Coloc').reset_index()
+        main_df = main_df.merge(coloc_pqtl_for_main_df, how='left')
+
         single_cell_expression_for_main_df = _self.single_cell_expression.groupby(['study_id','ensembl_id']).apply(lambda x: list(x.cell[x.padj <= 0.05])).rename('cells').reset_index()
         single_cell_expression_for_main_df = single_cell_expression_for_main_df.replace({'GSE174332':'sc_exp_risk','aals_progression_expression':'sc_exp_prog_aals'})
         single_cell_expression_for_main_df = single_cell_expression_for_main_df.pivot(index='ensembl_id', columns='study_id', values='cells').reset_index()
@@ -133,14 +137,14 @@ class data_loader():
         # Sort values by score
         main_df.sort_values(by=['score_risk', 'score_progression'], ascending=[False, False], inplace=True)
 
-        # # Configure column order
+        # Configure column order
         main_df = main_df[['symbol','name','entrez_id','uniprot_id', 'ec', 'ensembl_id',
-                            'score_risk','available','score_progression', 
+                            'score_risk','score_risk_n_sources','score_progression', 
                             'Protein class', 'Molecular function', 'Biological process',
                             '3D structure', 'Avg BLAST identity', 'chembl_id', 'Chemical matter',
-                            'gwas_hit_risk', 'Protein SMR', 'Expression Coloc', 'Additional SMR', 
+                            'gwas_hit_risk', 'Protein SMR','Additional SMR', 'Protein Coloc', 'Expression Coloc',  
                             'gwas_hit_progression','publication','sc_exp_risk', 'sc_exp_prog_aals', 'sc_prot_prog_aals']]
-
+        
         main_df.reset_index(drop=True, inplace=True)
         main_df.index = main_df.index+1
         main_df.reset_index(inplace=True) 
@@ -150,23 +154,15 @@ class data_loader():
 
     # === Omics
 
+    def get_coloc_pqtl_results(self, symbol):
+        result_coloc_pqtl = self.coloc_pqtl.loc[(self.coloc_pqtl.symbol == symbol) & (self.coloc_pqtl.n_coloc > 0), ['omic', 'n_coloc','cis_trans']]
+        result_coloc_pqtl.replace({'cis_trans':{1:'cis',2:'trans',3:'cis & trans'}}, inplace=True)
+        return result_coloc_pqtl
+    
     def get_coloc_eqtl_tissues(self, ensembl_id):
         coloc_eqtl_hits = self.coloc_eqtl[(self.coloc_eqtl.n_coloc > 0 )| (self.coloc_eqtl.pp_h4_abf > 0.8)]
         return coloc_eqtl_hits.loc[coloc_eqtl_hits.ensembl_id==ensembl_id, ['omic','tissue']].drop_duplicates()
 
-    def get_gtex_tissues(self, ensembl_id):
-        return coloc_eqtl_gtex.loc[(coloc_eqtl_gtex.gwas==self.gwas) & (coloc_eqtl_gtex.ensembl_id==ensembl_id), 'tissues'].fillna(False).values
-        
-    def get_single_cell_diffex(self, ensembl_id, uniprot_id):
-        sigle_cell_expression = self.single_cell_expression.loc[(self.single_cell_expression['ensembl_id'] == ensembl_id)].dropna()
-        single_cell_proteomics = self.single_cell_proteomics.loc[(self.single_cell_proteomics['uniprot_id'] == uniprot_id)].dropna()
-        
-        cols = ['cell','phenotype','study_type','log2_change','pvalue']
-        result = pd.concat([sigle_cell_expression[cols], single_cell_proteomics[cols]])
-        result['direction'] = np.where(result.log2_change > 0, 'up', 'down')
-        
-        return result
-    
     def get_smr_results(self, symbol):
         internal_result = smr_pqtl.loc[(smr_pqtl.gwas==self.gwas) & (smr_pqtl.symbol==symbol), ['omic','b_smr','p_smr']]
         omicsynth_result = smr_omicsynth.loc[(smr_omicsynth.indication==self.indication) & (smr_omicsynth.symbol==symbol), ['omic','b_smr','p_smr']]
@@ -174,11 +170,17 @@ class data_loader():
         smr_result['direction'] = np.select([(smr_result.b_smr < 0) & (smr_result.p_smr <= 0.05), 
                                             (smr_result.b_smr > 0) & (smr_result.p_smr <= 0.05)], ['down', 'up'], default='no change')
         return smr_result
-    
-    def get_pqtl_directionality(self, symbol):
-        result = smr_pqtl.loc[(smr_pqtl['gwas']==self.gwas) & (smr_pqtl['symbol']==symbol) & (smr_pqtl.smr_hit == 1), ['omic','b_smr','p_smr']]
+
+    def get_single_cell_diffex(self, ensembl_id, uniprot_id):
+        sigle_cell_expression = self.single_cell_expression.loc[(self.single_cell_expression['ensembl_id'] == ensembl_id)].dropna()
+        single_cell_proteomics = self.single_cell_proteomics.loc[(self.single_cell_proteomics['uniprot_id'] == uniprot_id)].dropna()
+        
+        cols = ['cell','phenotype','study_type','log2_change','pvalue']
+        result = pd.concat([sigle_cell_expression[cols], single_cell_proteomics[cols]])
+        result['direction'] = np.where(result.log2_change > 0, 'up', 'down')
         return result
     
+
     # === UniProt
 
     def get_uniprot_comments(self, uniprot_id, comment_type):

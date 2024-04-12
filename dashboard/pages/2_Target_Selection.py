@@ -65,8 +65,8 @@ builder.configure_column('name', hide=False)
 builder.configure_column('score_risk', hide=False, type=['numericColumn','numberColumnFilter','customNumericFormat'], precision=2)
 builder.configure_column('score_progression', hide=False, type=['numericColumn','numberColumnFilter','customNumericFormat'], precision=0)
 builder.configure_column('Protein class', hide=False)
-builder.configure_column('Molecular function', hide=False, initialWidth=10)
-builder.configure_column('Biological process', hide=False, initialWidth=10)
+# builder.configure_column('Molecular function', hide=False, initialWidth=10)
+# builder.configure_column('Biological process', hide=False, initialWidth=10)
 
 grid_options = builder.build()
 grid_response = AgGrid(main_df, 
@@ -131,14 +131,23 @@ st.write(f"## Expression")
 
 st.write(f"### Tissue specific")
 
-st.write(f"**From internal {indication}-specific colocalization analysis of GTEx**:")
+st.write(f"**From internal {indication}-specific colocalization analysis**:")
+coloc_pqtl_tissues = data.get_coloc_pqtl_results(symbol)
+if len(coloc_pqtl_tissues) == 0:
+    st.write(f'*No protein data available*')
+elif any(coloc_pqtl_tissues):
+    st.dataframe(coloc_pqtl_tissues, hide_index=True)
+else:
+    st.write('No protein hits')
+
+
 coloc_eqtl_tissues = data.get_coloc_eqtl_tissues(ensembl_id)
 if len(coloc_eqtl_tissues) == 0:
-    st.write(f'*No data available*')
+    st.write(f'*No gene expression data available*')
 elif any(coloc_eqtl_tissues):
     st.dataframe(coloc_eqtl_tissues, hide_index=True)
 else:
-    st.write('No signifiant tissues')
+    st.write('No gene expression hits')
 
 st.text("")
 
