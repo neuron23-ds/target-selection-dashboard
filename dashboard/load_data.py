@@ -59,7 +59,7 @@ column_descriptions = {
     'gwas_hit_risk':'GWAS hit for risk', 
     'Protein SMR':'Tissues with positive result from protein SMR analysis. Sources include plasma, brain, and CSF.', 
     'Expression Coloc':'Tissues with positive result from gene expression colocalization analysis. Sources include GTEx (47 tissues) and MetaBrain (5 brain-specific tissues).', 
-    'Expression Protein':'Tiissues with positive result from protein expression colocalization analysis. Sources include plasma, brain, and CSF.', 
+    'Protein Coloc':'Tiissues with positive result from protein expression colocalization analysis. Sources include plasma, brain, and CSF.', 
     'Additional SMR':'SMR results from NIH omicsynth browser',
     'SC Exprs Risk':'Cell types that show differential gene expression risk between diseased and control subjects.',
     'SC Exprs Progression':'Cell types that show differential gene expression with fast progressing ALS as compared to slow progressing in Answer ALS based on monthly change in ALSFRS',
