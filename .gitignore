@@ -1,0 +1,6 @@
+**/__pycache__
+**/.DS_Store
+mounted
+env
+dashboard/load_data.ipynb
+.streamlit/secrets.toml
