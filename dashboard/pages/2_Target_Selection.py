@@ -83,7 +83,7 @@ grid_response = AgGrid(main_df,
 def convert_df(df):
     return df.to_csv().encode('utf-8')
 csv = convert_df(grid_response['data'])
-st.download_button(label='Download main dataframe', data=csv, file_name='main_df.csv', mime='text/csv')
+st.download_button(label='Download main table', data=csv, file_name='main_df.csv', mime='text/csv')
 
 st.markdown('***')
 

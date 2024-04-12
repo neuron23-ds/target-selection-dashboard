@@ -57,14 +57,15 @@ column_descriptions = {
     'chembl_id':'ChEMBL ID', 
     'Chemical matter':'Chemical matter associated with this gene',
     'gwas_hit_risk':'GWAS hit for risk', 
-    'Protein SMR':'Protein SMR', 
-    'Expression Coloc':'Expression Coloc', 
+    'Protein SMR':'Tissues with positive result from protein SMR analysis. Sources include plasma, brain, and CSF.', 
+    'Expression Coloc':'Tissues with positive result from gene expression colocalization analysis. Sources include GTEx (47 tissues) and MetaBrain (5 brain-specific tissues).', 
+    'Expression Protein':'Tiissues with positive result from protein expression colocalization analysis. Sources include plasma, brain, and CSF.', 
     'Additional SMR':'SMR results from NIH omicsynth browser',
-    'SC Exprs Risk':'Single cell expression risk',
-    'SC Exprs Progression':'cell types that show differential gene expression with fast progressing ALS as compared to slow progressing in Answer ALS based on monthly change in ALSFRS',
-    'SC Protein Progression':'cell types that show differential protein with fast progressing ALS as compared to slow progressing in Answer ALS based on monthly change in ALSFRS',
-    'gwas_hit_progression':'indicates whether a published genetic association between this gene and ALS survival or progression has been confirmed in the Answer ALS cohort', 
-    'publication':'indicates whether a genetic association between this gene and ALS survival or progression has been published',
+    'SC Exprs Risk':'Cell types that show differential gene expression risk between diseased and control subjects.',
+    'SC Exprs Progression':'Cell types that show differential gene expression with fast progressing ALS as compared to slow progressing in Answer ALS based on monthly change in ALSFRS',
+    'SC Protein Progression':'Cell types that show differential protein with fast progressing ALS as compared to slow progressing in Answer ALS based on monthly change in ALSFRS',
+    'gwas_hit_progression':'Indicates whether a published genetic association between this gene and ALS survival or progression has been confirmed in the Answer ALS cohort', 
+    'publication':'Indicates whether a genetic association between this gene and ALS survival or progression has been published',
 }
 
 
