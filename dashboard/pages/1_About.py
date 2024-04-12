@@ -10,8 +10,8 @@ st.set_page_config(
 
 add_logo()
 
-# if not check_password():
-#     st.stop()  # Do not continue if check_password is not True.
+if not check_password():
+    st.stop()  # Do not continue if check_password is not True.
 
 st.markdown(
     """
