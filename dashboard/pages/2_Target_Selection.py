@@ -1,8 +1,8 @@
 import pandas as pd
 import streamlit as st
-from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, DataReturnMode, ColumnsAutoSizeMode
+from st_aggrid import AgGrid, GridOptionsBuilder
 
-from streamlit_utils import *
+from streamlit_utils import n23_icon, add_logo, check_password
 
 
 st.set_page_config(
@@ -44,46 +44,48 @@ st.title(f'Results for {indication}')
 # Main dataframe
 main_df = data.load_main_df()
 
-# Testing tooltips
 builder = GridOptionsBuilder.from_dataframe(main_df)
-builder.configure_default_column(filterable=True, sorteable=True, groupable=False, editable=False,
-                                  enableCellTextSelection=True, ensureDomOrder=True, enableValue=True,
-                                  hide=True)
 
-builder.configure_selection(selection_mode='single', pre_selected_rows=[1], use_checkbox=False)
-builder.configure_grid_options(tooltipInteraction=True, tooltipShowDelay=1000, alwaysShowHorizontalScroll=True,
-                               pagination=True, paginationPageSize=10000)
+builder.configure_selection(selection_mode='single', pre_selected_rows=[0], use_checkbox=False, suppressRowDeselection=True)
+builder.configure_pagination(paginationPageSize=10000, paginationAutoPageSize=False)
 builder.configure_side_bar()
+builder.configure_grid_options(tooltipInteraction=True, tooltipShowDelay=1000, alwaysShowHorizontalScroll=True)
 
 from load_data import column_descriptions
 for col, desc in column_descriptions.items():
     builder.configure_column(col, headerTooltip=desc)
+
+builder.configure_default_column(filterable=True, sorteable=True, groupable=False, editable=False,
+                                 enableCellTextSelection=True, ensureDomOrder=True, enableValue=True, 
+                                 hide=True, filter='agSetColumnFilter')
 
 builder.configure_column('index', hide=False, headerTooltip='index')
 builder.configure_column('symbol', hide=False)
 builder.configure_column('name', hide=False)
 builder.configure_column('score_risk', hide=False, type=['numericColumn','numberColumnFilter','customNumericFormat'], precision=2)
 builder.configure_column('score_progression', hide=False, type=['numericColumn','numberColumnFilter','customNumericFormat'], precision=0)
-builder.configure_column('Protein class', hide=False)
-# builder.configure_column('Molecular function', hide=False, initialWidth=10)
-# builder.configure_column('Biological process', hide=False, initialWidth=10)
+builder.configure_column('Protein class', hide=False, filter='agSetColumnFilter')
+
 
 grid_options = builder.build()
-grid_response = AgGrid(main_df, 
-                       height=500, 
-                       gridOptions=grid_options,
-                       update_mode=GridUpdateMode.SELECTION_CHANGED,
-                       data_return_mode=DataReturnMode.FILTERED_AND_SORTED,
-                       columns_auto_size_mode=ColumnsAutoSizeMode.FIT_CONTENTS,
-                       allow_unsafe_jscode=True)
+grid_return = AgGrid(main_df, 
+                     height=500, 
+                     gridOptions=grid_options,
+                     allow_unsafe_jscode=True,
+                     update_on=['sortChanged', 'filterChanged', 'filterModified','columnMoved','columnVisible'])
 
 
 # Add download button
-@st.cache_data
-def convert_df(df):
-    return df.to_csv().encode('utf-8')
-csv = convert_df(grid_response['data'])
-st.download_button(label='Download main table', data=csv, file_name='main_df.csv', mime='text/csv')
+def convert_df(main_df, grid_return):
+    visible_cols = [x['colId'] for x in grid_return['columns_state'] if not x['hide']]
+    col_order = grid_return['rows_id_after_sort_and_filter']
+    df_for_download = main_df.iloc[col_order][visible_cols]
+    return df_for_download.to_csv(index=False).encode('utf-8')
+try:
+    st.download_button(label='Download main table', data=convert_df(main_df, grid_return), file_name='main_table.csv', mime='text/csv')
+except TypeError:
+    pass
+
 
 st.markdown('***')
 
@@ -91,7 +93,11 @@ st.markdown('***')
 #   Detailed Information
 # =========================
 
-selected = grid_response['selected_rows'][0]
+try:
+    selected = grid_return['selected_rows'].iloc[0]
+except AttributeError:
+    st.write('Please select a row from the table to view detailed information.')
+    st.stop()
 
 name = selected['name']
 symbol = selected['symbol']
@@ -99,7 +105,6 @@ uniprot_id = selected['uniprot_id'][0] # Only displays first uniprot_id, need to
 ensembl_id = selected['ensembl_id'][0]
 entrez_id = int(selected['entrez_id'])
 chembl_id = selected['chembl_id']
-print(chembl_id)
 
 
 # st.write(f"# {symbol}")
