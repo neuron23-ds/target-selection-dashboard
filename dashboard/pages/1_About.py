@@ -1,6 +1,5 @@
 import streamlit as st
-from streamlit_utils import *
-
+from streamlit_utils import n23_icon, add_logo, check_password
 
 st.set_page_config(
   page_title='Target Selection Dashboard',
