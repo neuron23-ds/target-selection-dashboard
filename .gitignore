@@ -3,4 +3,5 @@
 mounted
 env
 dashboard/load_data.ipynb
+dashboard/gcloud.py
 .streamlit/secrets.toml
