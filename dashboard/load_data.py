@@ -22,12 +22,11 @@ coloc_eqtl_metabrain = conn.read('target-selection-pipeline/db/omics_coloc_eqtl_
 single_cell_expression = conn.read('target-selection-pipeline/db/omics_single_cell_results.csv')
 single_cell_proteomics = conn.read('target-selection-pipeline/db/omics_single_cell_results_uniprot.csv')
 
-uniprot_blast = conn.read('target-selection-pipeline/db/uniprot_blast.csv')
-
 uniprot_comments = conn.read('target-selection-pipeline/db/uniprot_comments.csv')
 uniprot_cross_references = conn.read('target-selection-pipeline/db/uniprot_cross_references.csv')
 uniprot_entries = conn.read('target-selection-pipeline/db/uniprot_entries.csv')
 uniprot_keywords = conn.read('target-selection-pipeline/db/uniprot_keywords.csv')
+uniprot_blast = conn.read('target-selection-pipeline/db/uniprot_blast.csv')
 
 chembl_mechanisms = conn.read('target-selection-pipeline/db/chembl_mechanisms.csv')
 chembl_molecules = conn.read('target-selection-pipeline/db/chembl_molecules.csv')
@@ -37,6 +36,7 @@ hpo_disease = conn.read('target-selection-pipeline/db/disease_hpo_diseases.csv')
 hpo_terms = conn.read('target-selection-pipeline/db/disease_hpo_terms.csv')
 rare_source = conn.read('target-selection-pipeline/db/disease_rare_source.csv')
 
+publications = conn.read('target-selection-pipeline/db/omics_publications_genetics.csv')
 
 column_descriptions = {
     'index':'Rank',
@@ -65,7 +65,7 @@ column_descriptions = {
     'SC Exprs Progression':'Cell types that show differential gene expression with fast progressing ALS as compared to slow progressing in Answer ALS based on monthly change in ALSFRS',
     'SC Protein Progression':'Cell types that show differential protein with fast progressing ALS as compared to slow progressing in Answer ALS based on monthly change in ALSFRS',
     'gwas_hit_progression':'Indicates whether a published genetic association between this gene and ALS survival or progression has been confirmed in the Answer ALS cohort', 
-    'publication':'Indicates whether a genetic association between this gene and ALS survival or progression has been published',
+    'publication_progression':'Indicates whether a genetic association between this gene and ALS survival or progression has been published',
 }
 
 
@@ -78,6 +78,9 @@ class data_loader():
         self.indication = indication
         self.gwas = gwas
         self.studies = studies[studies.indication == indication]
+
+        self.gwas_hits = pd.merge(studies, gwas_hits, left_on='study_id', right_on='gwas', how='right')
+        self.publications = publications[publications.indication == indication]
 
         self.smr_pqtl = pd.merge(self.studies, smr_pqtl, left_on='study_id', right_on='gwas', how='right')
         self.coloc_pqtl = pd.merge(self.studies, coloc_pqtl, left_on='study_id', right_on='gwas', how='right')
@@ -104,10 +107,13 @@ class data_loader():
         main_df['Biological process'] = main_df['Biological process'].map(string_list_to_list, na_action='ignore')
 
         # Merge with scores
-        main_df = pd.merge(main_df, risk_score[['entrez_id', 'name', 'symbol', 'uniprot_id', 'ec', 'ensembl_id', 'score','score_risk_n_sources','gwas_hit']], on=['entrez_id', 'name', 'symbol', 'uniprot_id', 'ec', 'ensembl_id'])
-        main_df = pd.merge(main_df, progression_score[['entrez_id', 'name', 'symbol', 'uniprot_id', 'ec', 'ensembl_id', 'score','gwas_hit','publication']], on=['entrez_id', 'name', 'symbol', 'uniprot_id', 'ec', 'ensembl_id'], suffixes=('_risk','_progression'))
+        main_df = pd.merge(main_df, risk_score[['entrez_id', 'name', 'symbol', 'uniprot_id', 'ec', 'ensembl_id', 'score','score_risk_n_sources']], on=['entrez_id', 'name', 'symbol', 'uniprot_id', 'ec', 'ensembl_id'])
+        main_df = pd.merge(main_df, progression_score[['entrez_id', 'name', 'symbol', 'uniprot_id', 'ec', 'ensembl_id', 'score']], on=['entrez_id', 'name', 'symbol', 'uniprot_id', 'ec', 'ensembl_id'], suffixes=('_risk','_progression'))
         
         # Merge with gwas-based results from core analysis
+        gwas_hits_risk_for_main_df = _self.gwas_hits[_self.gwas_hits.phenotype == 'risk'].groupby('symbol').snp.apply(list).rename('gwas_hit_risk').reset_index()
+        main_df = main_df.merge(gwas_hits_risk_for_main_df, how='left', on='symbol')
+
         smr_pqtl_for_main_df = _self.smr_pqtl.groupby('symbol').apply(lambda x: list(x.omic[x.smr_hit == 1])).rename('Protein SMR').reset_index()
         main_df = main_df.merge(smr_pqtl_for_main_df, how='left')
         
@@ -132,6 +138,13 @@ class data_loader():
         single_cell_proteomics_for_main_df = single_cell_proteomics_for_main_df.pivot(index='uniprot_id', columns='study_id', values='cells').reset_index()
         main_df = main_df.merge(single_cell_proteomics_for_main_df, how='left')
 
+        # Temp AALS progression stuff
+        gwas_hits_progression_for_main_df = _self.gwas_hits[(_self.gwas_hits.phenotype == 'progression') & (_self.gwas_hits.pvalue <= 0.05)].groupby('symbol').snp.apply(list).rename('gwas_hit_progression').reset_index()
+        main_df = main_df.merge(gwas_hits_progression_for_main_df, how='left', on='symbol')
+
+        pubications_progression_for_main_df = _self.publications[_self.publications.phenotype == 'Answer ALS progression'].groupby('symbol').reference.apply(list).rename('publication_progression').reset_index()
+        main_df = main_df.merge(pubications_progression_for_main_df, how='left', on='symbol')
+
         # Collapse genes with multiple uniprot, ensembl, and ec id's into lists
         new_index_cols = ['entrez_id','name','symbol']
         collapse_cols = ['uniprot_id','ensembl_id','ec']
@@ -147,13 +160,12 @@ class data_loader():
                             'Protein class', 'Molecular function', 'Biological process',
                             '3D structure', 'Avg BLAST identity', 'chembl_id', 'Chemical matter',
                             'gwas_hit_risk', 'Protein SMR','Additional SMR', 'Protein Coloc', 'Expression Coloc',  
-                            'gwas_hit_progression','publication','SC Exprs Risk', 'SC Exprs Progression', 'SC Protein Progression']]
+                            'gwas_hit_progression','publication_progression','SC Exprs Risk', 'SC Exprs Progression', 'SC Protein Progression']]
         
         main_df.reset_index(drop=True, inplace=True)
         main_df.index = main_df.index+1
         main_df.reset_index(inplace=True) 
-        
-        print(main_df)
+    
         return main_df
 
     # === Omics
