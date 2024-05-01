@@ -4,7 +4,7 @@ from streamlit_utils import n23_icon, add_logo, check_password
 st.set_page_config(
   page_title='Target Selection Dashboard',
   page_icon=n23_icon,
-  layout='wide'
+  # layout='wide'
   )
 
 add_logo()
@@ -16,16 +16,15 @@ st.markdown(
     """
     # Target Selection Dashboard
 
-    This dashboard was built to help facilitate the selection of new
-    targets at Neuron23. By displaying all facets of data in one place,
-    including genetic scores, biological function, and chemical druggability,
-    we can  more easily select new targets in a data-driven way.\n
-    <br/>
+    Welcome to the Target Selection Dashboard!
 
-    **👈  Click "Target Selection" on the sidebar** to get started!\n
-    <br/>
+    This was built to help facilitate the selection of new targets at Neuron23. 
+    In it, you will find data on genetic scores, biological function, chemical druggability, and clinical information.
+    This was built by the Data Science team in conjunction with both the Biology team and Chemistry team.\n
 
-    **👈  Check out the "About"** page for detailed explanations on what info is available.
+    See the "About" page for an explanation on how to use the dashboard and details on where information has been sourced from.
+
+    **👈  Click "Target Selection" on the sidebar to get started!**\n
     """,
     unsafe_allow_html=True,
 )
