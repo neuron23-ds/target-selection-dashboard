@@ -22,11 +22,13 @@ coloc_eqtl_metabrain = conn.read('target-selection-pipeline/db/omics_coloc_eqtl_
 single_cell_expression = conn.read('target-selection-pipeline/db/omics_single_cell_results.csv')
 single_cell_proteomics = conn.read('target-selection-pipeline/db/omics_single_cell_results_uniprot.csv')
 
-uniprot_comments = conn.read('target-selection-pipeline/db/uniprot_comments.csv')
-uniprot_cross_references = conn.read('target-selection-pipeline/db/uniprot_cross_references.csv')
 uniprot_entries = conn.read('target-selection-pipeline/db/uniprot_entries.csv')
+uniprot_cross_references = conn.read('target-selection-pipeline/db/uniprot_cross_references.csv')
+uniprot_comments = conn.read('target-selection-pipeline/db/uniprot_comments.csv')
 uniprot_keywords = conn.read('target-selection-pipeline/db/uniprot_keywords.csv')
 uniprot_blast = conn.read('target-selection-pipeline/db/uniprot_blast.csv')
+
+panther_gene_info = conn.read('target-selection-pipeline/db/panther_gene_info.csv')
 
 chembl_mechanisms = conn.read('target-selection-pipeline/db/chembl_mechanisms.csv')
 chembl_molecules = conn.read('target-selection-pipeline/db/chembl_molecules.csv')
@@ -40,33 +42,64 @@ publications = conn.read('target-selection-pipeline/db/omics_publications_geneti
 
 column_descriptions = {
     'index':'Rank',
+    # ID's
     'symbol':'Gene sybmol',
     'name':'Full name',
     'entrez_id':'Entrez ID',
     'uniprot_id':'UniProt ID',
     'ec':'Enzuyme Commission number',
     'ensembl_id':'Ensembl ID', 
+    'chembl_id':'ChEMBL ID', 
+    
+    # Risk score
     'score_risk':'Reflects the relative strength of association between a gene and indication. This is an internally determined score based on an analysis designed by the N23 DS team.', 
     'score_risk_n_sources':'The number data sources available for the risk score. Some genes may have data avaiable all sources, while others may have data available from only a few sources. You can take this number into account when interpreting the risk score.', 
-    'score_progression':'Omics progression score',
-    'Protein class':'Protein class', 
-    'Molecular function':'Molecular functions, as annotated by UniProt', 
-    'Biological process':'Biological process, as annotated by UniProt',
-    '3D structure':'Is there a 3D structure available via PDB?', 
-    'Avg BLAST identity':'Average identity to human proteins of top 5 BLAST results', 
-    'chembl_id':'ChEMBL ID', 
-    'Chemical matter':'Chemical matter associated with this gene',
     'gwas_hit_risk':'GWAS hit for risk', 
-    'Protein SMR':'Tissues with positive result from protein SMR analysis. Sources include plasma, brain, and CSF.', 
-    'Expression Coloc':'Tissues with positive result from gene expression colocalization analysis. Sources include GTEx (47 tissues) and MetaBrain (5 brain-specific tissues).', 
-    'Protein Coloc':'Tiissues with positive result from protein expression colocalization analysis. Sources include plasma, brain, and CSF.', 
-    'Additional SMR':'SMR results from NIH omicsynth browser',
-    'SC Exprs Risk':'Cell types that show differential gene expression risk between diseased and control subjects.',
-    'SC Exprs Progression':'Cell types that show differential gene expression with fast progressing ALS as compared to slow progressing in Answer ALS based on monthly change in ALSFRS',
-    'SC Protein Progression':'Cell types that show differential protein with fast progressing ALS as compared to slow progressing in Answer ALS based on monthly change in ALSFRS',
+    'protein_smr_risk':'Tissues with positive result from protein SMR analysis. Sources include plasma, brain, and CSF.', 
+    'expression_coloc_risk':'Tissues with positive result from gene expression colocalization analysis. Sources include GTEx (47 tissues) and MetaBrain (5 brain-specific tissues).', 
+    'protein_coloc_risk':'Tiissues with positive result from protein expression colocalization analysis. Sources include plasma, brain, and CSF.', 
+    'additional_smr_risk':'SMR results from NIH omicsynth browser',
+    'single_cell_expression_risk':'Cell types that show differential gene expression risk between diseased and control subjects.',
+    
+    # Progression sore
+    'score_progression':'Omics progression score',
+    'single_cell_expression_progression':'Cell types that show differential gene expression with fast progressing ALS as compared to slow progressing in Answer ALS based on monthly change in ALSFRS',
+    'single_cell_protein_progression':'Cell types that show differential protein with fast progressing ALS as compared to slow progressing in Answer ALS based on monthly change in ALSFRS',
     'gwas_hit_progression':'Indicates whether a published genetic association between this gene and ALS survival or progression has been confirmed in the Answer ALS cohort', 
     'publication_progression':'Indicates whether a genetic association between this gene and ALS survival or progression has been published',
+    
+    # Biological terms
+    'protein_class':'Protein classifications of this protein sourced from PANTHER. See About page for more info on the sources of this data.',
+    'molecular_function':'Molecular functions of this protein. Sourced from UniProt and GO See About page for more info on the sources of this data.',
+    'biological_process':'Biological processes of this protein. Sourced from UniProt and GO. See About page for more info on the sources of this data.',
+    'pathway':'Pathways this protein is involved with. Sourced from PANTHER and Reactome. See About page for more info on the sources of this data.',
+    'cellular_component':'Cellular components of this protein. Sourced from UniProt and GO. See About page for more info on the sources of this data.',
+    
+    # Chemistry info
+    'Protein class':'Protein classificaion as built internally. Manually classifies proteins into Enzyme, GPCR, Ion channel, Receptor, or Other.', 
+    '3D structure':'Is there a 3D structure available via PDB?', 
+    'Avg BLAST identity':'Average identity to human proteins of top 5 BLAST results', 
+    'Chemical matter':'Chemical matter associated with this gene',
 }
+
+panther_annotation_dataset_meaning = {
+    'PANTHER GO-Slim Molecular Function':'molecular_function',
+    'PANTHER GO-Slim Biological Process':'biological_process',
+    'PANTHER GO-Slim Cellular Component':'cellular_component',
+    'PANTHER Protein Class':'protein_class',
+    'PANTHER Pathways':'pathway',
+    'GO molecular function complete':'molecular_function',
+    'GO biological process complete':'biological_process',
+    'GO cellular component complete':'cellular_component',
+    'Reactome pathways':'pathway'
+}
+
+uniprot_keyword_category_meaning = {
+    'Molecular function':'molecular_function',
+    'Biological process':'biological_process',
+    'Cellular component':'cellular_component',
+}
+
 
 
 def string_list_to_list(x):
@@ -102,9 +135,8 @@ class data_loader():
         main_df = genes.copy()
         
         # Merge with druggability info
-        main_df = pd.merge(main_df, druggability_score, on=['entrez_id', 'name', 'symbol', 'uniprot_id', 'ec', 'ensembl_id'])
-        main_df['Molecular function'] = main_df['Molecular function'].map(string_list_to_list, na_action='ignore')
-        main_df['Biological process'] = main_df['Biological process'].map(string_list_to_list, na_action='ignore')
+        druggability_score_for_main_df = druggability_score[['entrez_id', 'name', 'symbol', 'uniprot_id', 'ec', 'ensembl_id', 'Protein class','3D structure', 'Avg BLAST identity', 'chembl_id', 'Chemical matter']]
+        main_df = pd.merge(main_df, druggability_score_for_main_df, on=['entrez_id', 'name', 'symbol', 'uniprot_id', 'ec', 'ensembl_id'])
 
         # Merge with scores
         main_df = pd.merge(main_df, risk_score[['entrez_id', 'name', 'symbol', 'uniprot_id', 'ec', 'ensembl_id', 'score','score_risk_n_sources']], on=['entrez_id', 'name', 'symbol', 'uniprot_id', 'ec', 'ensembl_id'])
@@ -114,27 +146,27 @@ class data_loader():
         gwas_hits_risk_for_main_df = _self.gwas_hits[_self.gwas_hits.phenotype == 'risk'].groupby('symbol').snp.apply(list).rename('gwas_hit_risk').reset_index()
         main_df = main_df.merge(gwas_hits_risk_for_main_df, how='left', on='symbol')
 
-        smr_pqtl_for_main_df = _self.smr_pqtl.groupby('symbol').apply(lambda x: list(x.omic[x.smr_hit == 1])).rename('Protein SMR').reset_index()
+        smr_pqtl_for_main_df = _self.smr_pqtl.groupby('symbol').apply(lambda x: list(x.omic[x.smr_hit == 1])).rename('protein_smr_risk').reset_index()
         main_df = main_df.merge(smr_pqtl_for_main_df, how='left')
         
-        coloc_eqtl_for_main_df = _self.coloc_eqtl.groupby('ensembl_id').apply(lambda x: list(x.tissue[(x.n_coloc > 0)|(x.pp_h4_abf>0.8)])).rename('Expression Coloc').reset_index()
+        coloc_eqtl_for_main_df = _self.coloc_eqtl.groupby('ensembl_id').apply(lambda x: list(x.tissue[(x.n_coloc > 0)|(x.pp_h4_abf>0.8)])).rename('expression_coloc_risk').reset_index()
         main_df = main_df.merge(coloc_eqtl_for_main_df, how='left')
 
         # Merge with supplementary omics data
-        smr_omicsynth_for_main_df = _self.smr_omicsynth.groupby('symbol').apply(lambda x: list(x.omic[x.smr_hit == 1])).rename('Additional SMR').reset_index()
+        smr_omicsynth_for_main_df = _self.smr_omicsynth.groupby('symbol').apply(lambda x: list(x.omic[x.smr_hit == 1])).rename('additional_smr_risk').reset_index()
         main_df = main_df.merge(smr_omicsynth_for_main_df, how='left')
 
-        coloc_pqtl_for_main_df = _self.coloc_pqtl.groupby('symbol').apply(lambda x: list(x.omic[(x.n_coloc > 0) & (x.n_coloc != x.n_hla)])).rename('Protein Coloc').reset_index()
+        coloc_pqtl_for_main_df = _self.coloc_pqtl.groupby('symbol').apply(lambda x: list(x.omic[(x.n_coloc > 0) & (x.n_coloc != x.n_hla)])).rename('protein_coloc_risk').reset_index()
         main_df = main_df.merge(coloc_pqtl_for_main_df, how='left')
 
-        single_cell_expression_risk_for_main_df = _self.single_cell_expression_risk.groupby('ensembl_id').apply(lambda x: list(x.cell[x.padj <= 0.05])).rename('SC Exprs Risk').reset_index()
+        single_cell_expression_risk_for_main_df = _self.single_cell_expression_risk.groupby('ensembl_id').apply(lambda x: list(x.cell[x.padj <= 0.05])).rename('single_cell_expression_risk').reset_index()
         main_df = main_df.merge(single_cell_expression_risk_for_main_df, how='left')
 
-        single_cell_expression_prog_for_main_df = _self.single_cell_expression_prog.groupby('ensembl_id').apply(lambda x: list(x.cell[x.pvalue <= 0.05])).rename('SC Exprs Progression').reset_index()
+        single_cell_expression_prog_for_main_df = _self.single_cell_expression_prog.groupby('ensembl_id').apply(lambda x: list(x.cell[x.pvalue <= 0.05])).rename('single_cell_expression_progression').reset_index()
         main_df = main_df.merge(single_cell_expression_prog_for_main_df, how='left')
 
         single_cell_proteomics_for_main_df = _self.single_cell_proteomics.groupby(['study_id','uniprot_id']).apply(lambda x: list(x.cell[x.pvalue <= 0.05])).rename('cells').reset_index()
-        single_cell_proteomics_for_main_df = single_cell_proteomics_for_main_df.replace({'aals_progression_proteomics':'SC Protein Progression'})
+        single_cell_proteomics_for_main_df = single_cell_proteomics_for_main_df.replace({'aals_progression_proteomics':'single_cell_protein_progression'})
         single_cell_proteomics_for_main_df = single_cell_proteomics_for_main_df.pivot(index='uniprot_id', columns='study_id', values='cells').reset_index()
         main_df = main_df.merge(single_cell_proteomics_for_main_df, how='left')
 
@@ -144,6 +176,21 @@ class data_loader():
 
         pubications_progression_for_main_df = _self.publications[_self.publications.phenotype == 'Answer ALS progression'].groupby('symbol').reference.apply(list).rename('publication_progression').reset_index()
         main_df = main_df.merge(pubications_progression_for_main_df, how='left', on='symbol')
+
+        # Merge with biological terms
+        panther_gene_info_for_main_df = panther_gene_info.copy()
+        panther_gene_info_for_main_df.replace({'annotation_dataset':panther_annotation_dataset_meaning}, inplace=True)
+        panther_gene_info_for_main_df.rename({'annotation_dataset':'header','annotation_name':'term'}, axis=1, inplace=True)
+
+        uniprot_keywords_for_main_df = uniprot_keywords.copy()
+        uniprot_keywords_for_main_df = uniprot_keywords_for_main_df[uniprot_keywords_for_main_df.category.isin(uniprot_keyword_category_meaning.keys())]
+        uniprot_keywords_for_main_df.replace({'category':uniprot_keyword_category_meaning}, inplace=True)
+        uniprot_keywords_for_main_df.rename({'category':'header','name':'term'}, axis=1, inplace=True)
+
+        terms = pd.concat([panther_gene_info_for_main_df, uniprot_keywords_for_main_df])[['uniprot_id','header','term']].drop_duplicates()
+        terms = terms.groupby(['uniprot_id','header']).term.apply(list).reset_index()
+        terms = terms.pivot(index='uniprot_id', columns='header', values='term').reset_index()
+        main_df = main_df.merge(terms, how='left', on='uniprot_id')
 
         # Collapse genes with multiple uniprot, ensembl, and ec id's into lists
         new_index_cols = ['entrez_id','name','symbol']
@@ -155,12 +202,13 @@ class data_loader():
         main_df.sort_values(by=['score_risk', 'score_progression'], ascending=[False, False], inplace=True)
 
         # Configure column order
-        main_df = main_df[['symbol','name','entrez_id','uniprot_id', 'ec', 'ensembl_id',
-                            'score_risk','score_risk_n_sources','score_progression', 
-                            'Protein class', 'Molecular function', 'Biological process',
-                            '3D structure', 'Avg BLAST identity', 'chembl_id', 'Chemical matter',
-                            'gwas_hit_risk', 'Protein SMR','Additional SMR', 'Protein Coloc', 'Expression Coloc',  
-                            'gwas_hit_progression','publication_progression','SC Exprs Risk', 'SC Exprs Progression', 'SC Protein Progression']]
+        main_df = main_df[[
+            'symbol','name','entrez_id','uniprot_id', 'ec', 'ensembl_id', 'chembl_id', # ids
+            'score_risk','score_risk_n_sources', 'gwas_hit_risk', 'protein_smr_risk','additional_smr_risk', 'protein_coloc_risk', 'expression_coloc_risk','single_cell_expression_risk', # risk score
+            'score_progression', 'gwas_hit_progression','publication_progression', 'single_cell_expression_progression', 'single_cell_protein_progression', # progression score
+            'protein_class','molecular_function','biological_process','pathway','cellular_component',# biological terms
+            'Protein class','3D structure', 'Avg BLAST identity', 'Chemical matter', # chemistry info
+        ]]
         
         main_df.reset_index(drop=True, inplace=True)
         main_df.index = main_df.index+1
