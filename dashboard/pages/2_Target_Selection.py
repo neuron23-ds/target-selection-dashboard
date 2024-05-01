@@ -1,6 +1,6 @@
 import pandas as pd
 import streamlit as st
-from st_aggrid import AgGrid, GridOptionsBuilder
+from st_aggrid import AgGrid, GridOptionsBuilder, ColumnsAutoSizeMode
 
 from streamlit_utils import n23_icon, add_logo, check_password
 
@@ -21,10 +21,16 @@ if not check_password():
 #   Sidebar 
 # ===========
 
-# Select an indication
-indications = ['ALS'] # PSP, FTD
+
+
 with st.sidebar:
-   indication = st.selectbox("Select an indication", indications)
+    # Select an indication
+    indications = ['ALS'] # PSP, FTD
+    indication = st.selectbox("Select an indication", indications)
+
+    # Select column presets
+    column_presets = ['Default','Omics Analysis Risk','Omics Analysis Progression','Biology','Chemistry']
+    column_preset = st.radio('Select a column preset', column_presets, index=0)
 
 
 ### TEMPORARY GWAS, need to come up with a way to do GWAS
@@ -47,7 +53,7 @@ main_df = data.load_main_df()
 builder = GridOptionsBuilder.from_dataframe(main_df)
 
 builder.configure_selection(selection_mode='single', pre_selected_rows=[0], use_checkbox=False, suppressRowDeselection=True)
-builder.configure_pagination(paginationPageSize=10000, paginationAutoPageSize=False)
+builder.configure_pagination(enabled=True, paginationPageSize=10000, paginationAutoPageSize=False)
 builder.configure_side_bar()
 builder.configure_grid_options(tooltipInteraction=True, tooltipShowDelay=1000, alwaysShowHorizontalScroll=True)
 
@@ -59,12 +65,24 @@ builder.configure_default_column(filterable=True, sorteable=True, groupable=Fals
                                  enableCellTextSelection=True, ensureDomOrder=True, enableValue=True, 
                                  hide=True, filter='agSetColumnFilter')
 
-builder.configure_column('index', hide=False, headerTooltip='index')
 builder.configure_column('symbol', hide=False)
 builder.configure_column('name', hide=False)
 builder.configure_column('score_risk', hide=False, type=['numericColumn','numberColumnFilter','customNumericFormat'], precision=2)
 builder.configure_column('score_progression', hide=False, type=['numericColumn','numberColumnFilter','customNumericFormat'], precision=0)
-builder.configure_column('Protein class', hide=False, filter='agSetColumnFilter')
+
+if column_preset == 'Default':
+    cols_to_show = []
+elif column_preset == 'Omics Analysis Risk':
+    cols_to_show = ['score_risk','score_risk_n_sources', 'gwas_hit_risk', 'protein_smr_risk','additional_smr_risk', 'protein_coloc_risk', 'expression_coloc_risk','single_cell_expression_risk']
+elif column_preset == 'Omics Analysis Progression':
+    cols_to_show = ['score_progression', 'gwas_hit_progression','publication_progression', 'single_cell_expression_progression', 'single_cell_protein_progression']
+elif column_preset == 'Biology':
+    cols_to_show = ['protein_class','molecular_function','biological_process','pathway','cellular_component','uniprot_id']
+elif column_preset == 'Chemistry':
+    cols_to_show = ['Protein class','3D structure', 'Avg BLAST identity', 'Chemical matter','chembl_id']
+
+for col in cols_to_show:
+    builder.configure_column(col, hide=False)
 
 
 grid_options = builder.build()
@@ -72,6 +90,7 @@ grid_return = AgGrid(main_df,
                      height=500, 
                      gridOptions=grid_options,
                      allow_unsafe_jscode=True,
+                     fit_columns_on_grid_load=True,
                      update_on=['sortChanged', 'filterChanged', 'filterModified','columnMoved','columnVisible'])
 
 
