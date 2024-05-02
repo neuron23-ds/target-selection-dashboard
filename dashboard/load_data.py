@@ -100,12 +100,6 @@ uniprot_keyword_category_meaning = {
     'Cellular component':'cellular_component',
 }
 
-
-
-def string_list_to_list(x):
-    return literal_eval(x.replace("' '", "','").replace('\n',','))
-
-
 class data_loader():
     def __init__(self, indication, gwas):
         self.indication = indication
@@ -264,6 +258,35 @@ class data_loader():
 
     def get_uniprot_blast(self, uniprot_id):
         return uniprot_blast.loc[uniprot_blast.uniprot_id == uniprot_id]
+
+    # === Function
+    def get_molecular_functions(self, uniprot_id):
+        mf1 = uniprot_keywords.loc[(uniprot_keywords.uniprot_id == uniprot_id) & (uniprot_keywords.category == "Molecular function"), ['name', 'category']].replace("Molecular function", "Uniprot molecular function keywords").rename({'name':'Molecular Function', 'category':'Annotation Source'}, axis=1)
+        mf2 = panther_gene_info.loc[(panther_gene_info.uniprot_id == uniprot_id) & (panther_gene_info.annotation_dataset == "PANTHER GO-Slim Molecular Function"), ['annotation_name', 'annotation_dataset']].rename({'annotation_name':'Molecular Function', 'annotation_dataset':'Annotation Source'}, axis=1)
+        mf3 = panther_gene_info.loc[(panther_gene_info.uniprot_id == uniprot_id) & (panther_gene_info.annotation_dataset == "GO molecular function complete"), ['annotation_name', 'annotation_dataset']].rename({'annotation_name':'Molecular Function', 'annotation_dataset':'Annotation Source'}, axis=1)
+        mf = pd.concat([mf1, mf2, mf3]).drop_duplicates(subset='Molecular Function', keep='first')
+        return mf
+
+    def get_biological_processes(self, uniprot_id):
+        bp1 = uniprot_keywords.loc[(uniprot_keywords.uniprot_id == uniprot_id) & (uniprot_keywords.category == "Biological process"), ['name', 'category']].replace("Biological process", "Uniprot biological process keywords").rename({'name':'Biological process', 'category':'Annotation Source'}, axis=1)
+        bp2 = panther_gene_info.loc[(panther_gene_info.uniprot_id == uniprot_id) & (panther_gene_info.annotation_dataset == "PANTHER GO-Slim Biological Process"), ['annotation_name', 'annotation_dataset']].rename({'annotation_name':'Biological process', 'annotation_dataset':'Annotation Source'}, axis=1)
+        bp3 = panther_gene_info.loc[(panther_gene_info.uniprot_id == uniprot_id) & (panther_gene_info.annotation_dataset == "GO biological process complete"), ['annotation_name', 'annotation_dataset']].rename({'annotation_name':'Biological process', 'annotation_dataset':'Annotation Source'}, axis=1)
+        bp = pd.concat([bp1, bp2, bp3]).drop_duplicates(subset='Biological process', keep='first')
+        return bp
+
+    # === Network and Pathway
+    def get_pathways(self, uniprot_id):
+        p1 = panther_gene_info.loc[(panther_gene_info.uniprot_id == uniprot_id) & (panther_gene_info.annotation_dataset == "PANTHER Pathways"), ['annotation_name', 'annotation_dataset']].rename({'annotation_name':'Pathway', 'annotation_dataset':'Annotation Source'}, axis=1)
+        p2 = panther_gene_info.loc[(panther_gene_info.uniprot_id == uniprot_id) & (panther_gene_info.annotation_dataset == "Reactome pathways"), ['annotation_name', 'annotation_dataset']].rename({'annotation_name':'Pathway', 'annotation_dataset':'Annotation Source'}, axis=1)
+        p3 = [x.strip() for x in ';'.join(uniprot_comments.loc[(uniprot_comments.uniprot_id == uniprot_id) & (uniprot_comments.comment_type == 'PATHWAY'), 'comment'].values).split(';')]
+        try:
+            p3.remove('')
+        except:
+            pass
+        p3 = pd.DataFrame({'Pathway':p3, 'Annotation Source':'UniProt'})
+        p = pd.concat([p1, p2, p3]).drop_duplicates(subset='Pathway', keep='first')
+        return p
+
 
     # === ChEMBL
     def get_chembl_molecules(self, chembl_id):

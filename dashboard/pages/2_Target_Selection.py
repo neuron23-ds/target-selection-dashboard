@@ -131,145 +131,129 @@ chembl_id = selected['chembl_id']
 st.write(f"# {symbol} ({name})")
 
 
-st.write(f"## Function")
+with st.container():
+    st.write(f"## FUNCTION")
 
-description = data.get_uniprot_comments(uniprot_id, 'FUNCTION')
-if any(description):
-   st.write(description[0])
-else: 
-   st.write("*No description available*")
+    description = data.get_uniprot_comments(uniprot_id, 'FUNCTION')
+    if any(description):
+        st.write("**Description:**", description[0])
+    else: 
+        st.write("**Description:** *No description available*")
 
-molecular_function = data.get_uniprot_keywords(uniprot_id, 'Molecular function')
-if any(molecular_function):
-    st.write(f"**Molecular function**: {', '.join(molecular_function)}")
+    st.write("**Molecular functions**:")
+    molecular_functions = data.get_molecular_functions(uniprot_id)
+    st.dataframe(molecular_functions, hide_index=True)
 
-biological_proceses = data.get_uniprot_keywords(uniprot_id, 'Biological process')
-if any(biological_proceses):
-    st.write(f"**Biological process**: {', '.join(biological_proceses)}")
-
-
-st.markdown('***')
-
-
-st.write(f"## Expression")
-
-st.write(f"### Tissue specific")
-
-st.write(f"**From internal {indication}-specific colocalization analysis**:")
-coloc_pqtl_tissues = data.get_coloc_pqtl_results(symbol)
-if len(coloc_pqtl_tissues) == 0:
-    st.write(f'*No protein data available*')
-elif any(coloc_pqtl_tissues):
-    st.dataframe(coloc_pqtl_tissues, hide_index=True)
-else:
-    st.write('No protein hits')
-
-
-coloc_eqtl_tissues = data.get_coloc_eqtl_tissues(ensembl_id)
-if len(coloc_eqtl_tissues) == 0:
-    st.write(f'*No gene expression data available*')
-elif any(coloc_eqtl_tissues):
-    st.dataframe(coloc_eqtl_tissues, hide_index=True)
-else:
-    st.write('No gene expression hits')
-
-st.text("")
-
-st.write(f"**From internal {indication}-specific SMR analysis**:")
-get_smr_results = data.get_smr_results(symbol)
-if not get_smr_results.empty:
-    st.dataframe(get_smr_results, hide_index=True)
-else:
-    st.write("*No data available*")
-
-st.text("")
-
-st.write("**From UniProt**:")
-uniprot_tissues = data.get_uniprot_comments(uniprot_id, 'TISSUE SPECIFICITY')
-if any(uniprot_tissues):
-    st.write(f"{uniprot_tissues[0]}")
-else:
-    st.write("*No hits or no data available*")
-
-st.text("")
-
-st.write(f"### Cell specific")
-single_cell_diffex = data.get_single_cell_diffex(ensembl_id, uniprot_id)
-if not single_cell_diffex.empty:
-    st.dataframe(single_cell_diffex, hide_index=True)
-else:
-    st.write("*No data available*")
-
-st.text("")
-
-st.write(f"### Subcellular location")
-uniprot_subcell_location = data.get_uniprot_subcell_location(uniprot_id)
-if any(uniprot_subcell_location):
-    st.write(f"**From UniProt**: {', '.join(uniprot_subcell_location)}")
+    st.write("**Biological processes**:")
+    biological_processes = data.get_biological_processes(uniprot_id)
+    st.dataframe(biological_processes, hide_index=True)
 
 
 st.markdown('***')
 
 
-st.write(f"## Network & Pathway")
+with st.container():
+    st.write(f"## EXPRESSION & LOCALIZATION")
 
-uniprot_pathways = data.get_uniprot_comments(uniprot_id, 'PATHWAY')
-if any(uniprot_pathways):
-    st.write(f"**Pathways via uniprot**: {''.join(uniprot_pathways)}")
+    with st.container(border=True):
+        st.write(f"### {indication}-Specific")
+        
+        st.write("#### Tissue-level")
+        
+        st.write("**SMR Results**")
+        st.write(f"Tests whether the effect size of a SNP on {indication} is mediated by {symbol} protein expression.")
+        st.dataframe(data.get_smr_results(symbol), hide_index=True)
+        
+        st.write("**Colocalization Results**")
+        st.write(f"Identifies genes that contain a SNP which introduces phenotypic change in both {symbol} protein expression and {indication} risk.")
+        st.dataframe(data.get_coloc_pqtl_results(symbol), hide_index=True)
+        st.write(f"Identifies genes that contain a SNP which introduces phenotypic change in both {symbol} RNA expression and {indication} risk.")
+        st.dataframe(data.get_coloc_eqtl_tissues(ensembl_id), hide_index=True)
 
-uniprot_interactors = data.get_uniprot_comments(uniprot_id, 'INTERACTION')
-if any(uniprot_interactors):
-    st.write(f"**Interactions via uniprot**: {''.join(uniprot_interactors)}")
 
+        st.write("#### Cell-level")
+        st.write("**Single Cell Differential Expression Results**")
+        st.write(f"Cells below show differential {symbol} expression in  RNA (sc_dge) or protein (sc_dpe) with respect to the {indication} phenotype indicated.")
+        st.dataframe(data.get_single_cell_diffex(ensembl_id, uniprot_id), hide_index=True)
 
-st.markdown('***')
+    with st.container():
+        st.write(f"### General (non indication-specific)")
+        st.write("#### Tissue-level")
+        uniprot_tissues = data.get_uniprot_comments(uniprot_id, 'TISSUE SPECIFICITY')
+        if any(uniprot_tissues):
+            st.write(f"**From UniProt**: {uniprot_tissues[0]}")
+        else:
+            st.write("*No hits or no data available*")
 
-
-st.write(f"## Druggability")
-
-regulation = data.get_uniprot_comments(uniprot_id, 'ACTIVITY REGULATION')
-if any(regulation):
-    st.write(f"**Activity regulation**: {', '.join(regulation)}")
-
-st.write(f"### Structure")
-pdb_ids = data.get_uniprot_pdb(uniprot_id)
-if any(pdb_ids):
-    st.write(f"**Known strcuture PDB ID(s)**: {', '.join(pdb_ids)}")
-else:
-    blast_result = data.get_uniprot_blast(uniprot_id)
-    if not blast_result.empty:
-        st.dataframe(blast_result, hide_index=True)
-
-st.write(f"### Chemical Matter")
-molecules = data.get_chembl_molecules(chembl_id)
-if isinstance(molecules, pd.DataFrame):
-    st.write(f"**Molecules targeting this protein**:")
-    st.dataframe(molecules, hide_index=True)
-
-activities = data.get_chembl_activities(molecules)
-if isinstance(activities, pd.DataFrame):
-    if not activities.empty:
-        st.write(f"**Activities of molecules targeting this protein**:")
-        st.dataframe(activities, hide_index=True)
+        st.write("#### Subcellular Location")
+        uniprot_subcell_location = data.get_uniprot_subcell_location(uniprot_id)
+        if any(uniprot_subcell_location):
+            st.write(f"**From UniProt**: {', '.join(uniprot_subcell_location)}")
 
 
 st.markdown('***')
 
 
-st.write(f"## Disease Involvement")
+with st.container():
+    st.write(f"## NETWORK & PATHWAY")
+    st.write(f"{symbol} is involved in the following pathways:")
+    st.dataframe(data.get_pathways(uniprot_id), hide_index=True)
 
-uniprot_disease = data.get_uniprot_keywords(uniprot_id, 'Disease')
-if any(uniprot_disease):
-    st.write(f"**Disease(s) associated with this gene via UniProt**: {', '.join(uniprot_disease)}")
+    uniprot_interactors = data.get_uniprot_comments(uniprot_id, 'INTERACTION')
+    if any(uniprot_interactors):
+        st.write(f"**Interactions via uniprot**: {''.join(uniprot_interactors)}")
 
-hpo_disease = data.get_hpo_disease(entrez_id)
-if not hpo_disease.empty:
-    st.write('**Disease(s) associated with this gene via HPO**:')
-    st.dataframe(hpo_disease, hide_index=True)
 
-hpo_terms = data.get_hpo_terms(entrez_id)
-if not hpo_terms.empty:
-    st.write('**Symptoms associated with this gene via HPO**:')
-    st.dataframe(hpo_terms, hide_index=True)    
+st.markdown('***')
+
+
+with st.container():
+    st.write(f"## DRUGGABILITY")
+
+    regulation = data.get_uniprot_comments(uniprot_id, 'ACTIVITY REGULATION')
+    if any(regulation):
+        st.write(f"**Activity regulation**: {', '.join(regulation)}")
+
+    st.write(f"### Structure")
+    pdb_ids = data.get_uniprot_pdb(uniprot_id)
+    if any(pdb_ids):
+        st.write(f"**Known strcuture PDB ID(s)**: {', '.join(pdb_ids)}")
+    else:
+        blast_result = data.get_uniprot_blast(uniprot_id)
+        if not blast_result.empty:
+            st.dataframe(blast_result, hide_index=True)
+
+    st.write(f"### Chemical Matter")
+    molecules = data.get_chembl_molecules(chembl_id)
+    if isinstance(molecules, pd.DataFrame):
+        st.write(f"**Molecules targeting this protein**:")
+        st.dataframe(molecules, hide_index=True)
+
+    activities = data.get_chembl_activities(molecules)
+    if isinstance(activities, pd.DataFrame):
+        if not activities.empty:
+            st.write(f"**Activities of molecules targeting this protein**:")
+            st.dataframe(activities, hide_index=True)
+
+
+st.markdown('***')
+
+
+with st.container():
+    st.write(f"## DISEASE INVOLVEMENT")
+
+    uniprot_disease = data.get_uniprot_keywords(uniprot_id, 'Disease')
+    if any(uniprot_disease):
+        st.write(f"**Disease(s) associated with this gene via UniProt**: {', '.join(uniprot_disease)}")
+
+    hpo_disease = data.get_hpo_disease(entrez_id)
+    if not hpo_disease.empty:
+        st.write('**Disease(s) associated with this gene via HPO**:')
+        st.dataframe(hpo_disease, hide_index=True)
+
+    hpo_terms = data.get_hpo_terms(entrez_id)
+    if not hpo_terms.empty:
+        st.write('**Symptoms associated with this gene via HPO**:')
+        st.dataframe(hpo_terms, hide_index=True)    
 
 
