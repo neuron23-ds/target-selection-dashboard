@@ -21,8 +21,6 @@ if not check_password():
 #   Sidebar 
 # ===========
 
-
-
 with st.sidebar:
     # Select an indication
     indications = ['ALS'] # PSP, FTD
@@ -105,6 +103,8 @@ try:
 except TypeError:
     pass
 
+# Jump to sections
+st.markdown("Jump to: [Function](#function), [Expression & Localization](#expression-localization), [Network & Pathway](#network-pathway), [Druggability](#druggability), [Disease Involvement](#disease-involvement)") 
 
 st.markdown('***')
 
