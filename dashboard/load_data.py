@@ -17,10 +17,9 @@ gwas_hits = conn.read('target-selection-pipeline/db/omics_gwas_hits.csv')
 smr_omicsynth = conn.read('target-selection-pipeline/db/omics_smr_omicsynth.csv')
 smr_pqtl = conn.read('target-selection-pipeline/db/omics_smr_pqtl.csv')
 coloc_pqtl = conn.read('target-selection-pipeline/db/omics_coloc_pqtl.csv')
-coloc_eqtl_gtex = conn.read('target-selection-pipeline/db/omics_coloc_eqtl_gtex.csv')
-coloc_eqtl_metabrain = conn.read('target-selection-pipeline/db/omics_coloc_eqtl_metabrain.csv')
-single_cell_expression = conn.read('target-selection-pipeline/db/omics_single_cell_results.csv')
-single_cell_proteomics = conn.read('target-selection-pipeline/db/omics_single_cell_results_uniprot.csv')
+coloc_eqtl = conn.read('target-selection-pipeline/db/omics_coloc_eqtl.csv')
+single_cell_expression = conn.read('target-selection-pipeline/db/omics_single_cell_expression.csv')
+single_cell_proteomics = conn.read('target-selection-pipeline/db/omics_single_cell_proteomics.csv')
 
 uniprot_entries = conn.read('target-selection-pipeline/db/uniprot_entries.csv')
 uniprot_cross_references = conn.read('target-selection-pipeline/db/uniprot_cross_references.csv')
@@ -106,20 +105,18 @@ class data_loader():
         self.gwas = gwas
         self.studies = studies[studies.indication == indication]
 
-        self.gwas_hits = pd.merge(studies, gwas_hits, left_on='study_id', right_on='gwas', how='right')
+        self.gwas_hits = pd.merge(studies, gwas_hits, left_on='study_id', right_on='gwas', how='inner')
         self.publications = publications[publications.indication == indication]
 
-        self.smr_pqtl = pd.merge(self.studies, smr_pqtl, left_on='study_id', right_on='gwas', how='right')
-        self.coloc_pqtl = pd.merge(self.studies, coloc_pqtl, left_on='study_id', right_on='gwas', how='right')
-        self.coloc_eqtl_gtex = pd.merge(self.studies, coloc_eqtl_gtex, left_on='study_id', right_on='gwas', how='right')
-        self.coloc_eqtl_metabrain = pd.merge(self.studies, coloc_eqtl_metabrain, left_on='study_id', right_on='gwas', how='right')
-        self.coloc_eqtl = pd.concat([self.coloc_eqtl_gtex, self.coloc_eqtl_metabrain])
+        self.smr_pqtl = pd.merge(self.studies, smr_pqtl, left_on='study_id', right_on='gwas', how='inner')
+        self.coloc_pqtl = pd.merge(self.studies, coloc_pqtl, left_on='study_id', right_on='gwas', how='inner')
+        self.coloc_eqtl = pd.merge(self.studies, coloc_eqtl, left_on='study_id', right_on='gwas', how='inner')
         
         self.smr_omicsynth = smr_omicsynth[smr_omicsynth.indication == self.indication]
         self.single_cell_expression_risk = pd.merge(self.studies[self.studies.phenotype == 'risk'], single_cell_expression, on='study_id', how='inner')
         self.single_cell_expression_prog = pd.merge(self.studies[self.studies.phenotype == 'progression'], single_cell_expression, on='study_id', how='inner')
         
-        self.single_cell_proteomics = pd.merge(self.studies, single_cell_proteomics, on='study_id', how='right')
+        self.single_cell_proteomics = pd.merge(self.studies, single_cell_proteomics, on='study_id', how='inner')
     
     @st.cache_data
     def load_main_df(_self):
@@ -140,18 +137,18 @@ class data_loader():
         gwas_hits_risk_for_main_df = _self.gwas_hits[_self.gwas_hits.phenotype == 'risk'].groupby('symbol').snp.apply(list).rename('gwas_hit_risk').reset_index()
         main_df = main_df.merge(gwas_hits_risk_for_main_df, how='left', on='symbol')
 
-        smr_pqtl_for_main_df = _self.smr_pqtl.groupby('symbol').apply(lambda x: list(x.omic[x.smr_hit == 1])).rename('protein_smr_risk').reset_index()
+        smr_pqtl_for_main_df = _self.smr_pqtl[_self.smr_pqtl.smr_hit == 1].groupby('symbol').omic.apply(list).rename('protein_smr_risk').reset_index()
         main_df = main_df.merge(smr_pqtl_for_main_df, how='left')
+
+        coloc_pqtl_for_main_df = _self.coloc_pqtl[_self.coloc_pqtl.HLA == False].groupby('symbol').omic.apply(list).rename('protein_coloc_risk').reset_index()
+        main_df = main_df.merge(coloc_pqtl_for_main_df, how='left')
         
-        coloc_eqtl_for_main_df = _self.coloc_eqtl.groupby('ensembl_id').apply(lambda x: list(x.tissue[(x.n_coloc > 0)|(x.pp_h4_abf>0.8)])).rename('expression_coloc_risk').reset_index()
+        coloc_eqtl_for_main_df = _self.coloc_eqtl.groupby('ensembl_id').tissue.apply(list).rename('expression_coloc_risk').reset_index()
         main_df = main_df.merge(coloc_eqtl_for_main_df, how='left')
 
         # Merge with supplementary omics data
         smr_omicsynth_for_main_df = _self.smr_omicsynth.groupby('symbol').apply(lambda x: list(x.omic[x.smr_hit == 1])).rename('additional_smr_risk').reset_index()
         main_df = main_df.merge(smr_omicsynth_for_main_df, how='left')
-
-        coloc_pqtl_for_main_df = _self.coloc_pqtl.groupby('symbol').apply(lambda x: list(x.omic[(x.n_coloc > 0) & (x.n_coloc != x.n_hla)])).rename('protein_coloc_risk').reset_index()
-        main_df = main_df.merge(coloc_pqtl_for_main_df, how='left')
 
         single_cell_expression_risk_for_main_df = _self.single_cell_expression_risk.groupby('ensembl_id').apply(lambda x: list(x.cell[x.padj <= 0.05])).rename('single_cell_expression_risk').reset_index()
         main_df = main_df.merge(single_cell_expression_risk_for_main_df, how='left')
@@ -211,15 +208,12 @@ class data_loader():
         return main_df
 
     # === Omics
-
-    def get_coloc_pqtl_results(self, symbol):
-        result_coloc_pqtl = self.coloc_pqtl.loc[(self.coloc_pqtl.symbol == symbol) & (self.coloc_pqtl.n_coloc > 0), ['omic', 'n_coloc','cis_trans']]
-        result_coloc_pqtl.replace({'cis_trans':{1:'cis',2:'trans',3:'cis & trans'}}, inplace=True)
-        return result_coloc_pqtl
-    
-    def get_coloc_eqtl_tissues(self, ensembl_id):
-        coloc_eqtl_hits = self.coloc_eqtl[(self.coloc_eqtl.n_coloc > 0 )| (self.coloc_eqtl.pp_h4_abf > 0.8)]
-        return coloc_eqtl_hits.loc[coloc_eqtl_hits.ensembl_id==ensembl_id, ['omic','tissue']].drop_duplicates()
+    def get_coloc_results(self, symbol, ensembl_id):
+        coloc_pqtl_hits = self.coloc_pqtl.loc[self.coloc_pqtl.symbol == symbol, ['omic','cis']]
+        coloc_eqtl_hits = self.coloc_eqtl.loc[self.coloc_eqtl.ensembl_id == ensembl_id, ['omic','tissue']]
+        coloc_hits = pd.concat([coloc_eqtl_hits,coloc_pqtl_hits])
+        coloc_hits = coloc_hits.fillna({'tissue':coloc_hits.omic,'cis':True}).replace({True:'cis',False:'trans'}).rename({'cis':'cis/trans'}, axis=1)
+        return coloc_hits
 
     def get_smr_results(self, symbol):
         internal_result = smr_pqtl.loc[(smr_pqtl.gwas==self.gwas) & (smr_pqtl.symbol==symbol), ['omic','b_smr','p_smr']]

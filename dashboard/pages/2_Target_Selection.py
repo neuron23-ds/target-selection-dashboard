@@ -165,11 +165,8 @@ with st.container():
         st.dataframe(data.get_smr_results(symbol), hide_index=True)
         
         st.write("**Colocalization Results**")
-        st.write(f"Identifies genes that contain a SNP which introduces phenotypic change in both {symbol} protein expression and {indication} risk.")
-        st.dataframe(data.get_coloc_pqtl_results(symbol), hide_index=True)
-        st.write(f"Identifies genes that contain a SNP which introduces phenotypic change in both {symbol} RNA expression and {indication} risk.")
-        st.dataframe(data.get_coloc_eqtl_tissues(ensembl_id), hide_index=True)
-
+        st.write(f"Identifies genes that contain a SNP which introduces phenotypic change in both {symbol} omic expression and {indication} risk.")
+        st.dataframe(data.get_coloc_results(symbol, ensembl_id), hide_index=True)
 
         st.write("#### Cell-level")
         st.write("**Single Cell Differential Expression Results**")
